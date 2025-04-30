@@ -1,223 +1,187 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { Order, OrderStatus } from '../entities/order.entity';
-import { OrderItem } from '../entities/order-item.entity';
-import { CustomersService } from '../customers/customers.service';
-import { ServicesService } from '../services/services.service';
+// backend/backend-rentalmobil/src/orders/orders.service.ts
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
-import { generateOrderNumber } from '../utils/order-number';
+import { UpdateOrderDto, OrderStatus } from './dto/update-order.dto';
+// import { InjectRepository } from '@nestjs/typeorm'; // Uncomment jika pakai TypeORM
+// import { Repository } from 'typeorm'; // Uncomment jika pakai TypeORM
+// import { Order } from './entities/order.entity'; // Import entity Order
+// import { Car } from '../cars/entities/car.entity'; // Import entity Car
+// import { User } from '../users/entities/user.entity'; // Import entity User
 
 @Injectable()
 export class OrdersService {
-  constructor(
-    @InjectRepository(Order)
-    private ordersRepository: Repository<Order>,
-    @InjectRepository(OrderItem)
-    private orderItemsRepository: Repository<OrderItem>,
-    private customersService: CustomersService,
-    private servicesService: ServicesService,
-  ) {}
 
-  async create(createOrderDto: CreateOrderDto): Promise<Order> {
-    const customer = await this.customersService.findOne(createOrderDto.customerId);
-    if (!customer) {
-      throw new NotFoundException(`Customer with ID ${createOrderDto.customerId} not found`);
+  // --- Placeholder jika belum pakai database ---
+  private orders: any[] = [
+      { id: 1, userId: 1, carId: 2, startDate: '2024-08-10T09:00:00Z', endDate: '2024-08-12T09:00:00Z', totalPrice: 600000, status: OrderStatus.COMPLETED, createdAt: new Date() },
+      { id: 2, userId: 2, carId: 1, startDate: '2024-08-15T10:00:00Z', endDate: '2024-08-18T10:00:00Z', totalPrice: 900000, status: OrderStatus.CONFIRMED, createdAt: new Date() },
+  ];
+  private nextId = 3;
+  // --- End Placeholder ---
+
+
+  // --- Contoh jika menggunakan TypeORM ---
+  // constructor(
+  //   @InjectRepository(Order)
+  //   private ordersRepository: Repository<Order>,
+  //   @InjectRepository(Car) // Inject repo lain jika perlu
+  //   private carsRepository: Repository<Car>,
+  //   @InjectRepository(User) // Inject repo lain jika perlu
+  //   private usersRepository: Repository<User>,
+  // ) {}
+  // --- End Contoh TypeORM ---
+
+
+  async create(createOrderDto: CreateOrderDto): Promise<any> { // Ganti 'any' dengan 'Order' entity jika pakai ORM
+    console.log('Creating order with data:', createOrderDto);
+
+    // --- Logika Bisnis (PENTING!) ---
+    // 1. Validasi Input Lebih Lanjut (misal: endDate > startDate)
+    if (new Date(createOrderDto.endDate) <= new Date(createOrderDto.startDate)) {
+        throw new BadRequestException('Tanggal selesai harus setelah tanggal mulai');
     }
 
-    // Create order first
-    const order = this.ordersRepository.create({
-      customerId: createOrderDto.customerId,
-      note: createOrderDto.note,
-      orderNumber: await generateOrderNumber(),
-      status: OrderStatus.PENDING,
-      isPaid: createOrderDto.isPaid || false,
-      paymentMethod: createOrderDto.paymentMethod,
-      deliveryDate: createOrderDto.deliveryDate,
-      totalAmount: 0,
-    });
+    // 2. Cek Keberadaan User dan Mobil (jika pakai DB)
+    // const user = await this.usersRepository.findOneBy({ id: createOrderDto.userId });
+    // if (!user) throw new NotFoundException(`User dengan ID ${createOrderDto.userId} tidak ditemukan`);
+    // const car = await this.carsRepository.findOneBy({ id: createOrderDto.carId });
+    // if (!car) throw new NotFoundException(`Mobil dengan ID ${createOrderDto.carId} tidak ditemukan`);
 
-    // Save order first to get its ID
-    const savedOrder = await this.ordersRepository.save(order);
+    // 3. Cek Ketersediaan Mobil pada rentang tanggal yang diminta (ini kompleks!)
+    //    Query ke order lain untuk mobil yg sama, cek overlap tanggal.
+    //    Jika tidak tersedia, throw BadRequestException('Mobil tidak tersedia pada tanggal tersebut');
 
-    // Process order items
-    let total = 0;
-    if (createOrderDto.items && createOrderDto.items.length > 0) {
-      // Save items one by one to ensure orderId is set
-      for (const item of createOrderDto.items) {
-        const service = await this.servicesService.findOne(item.serviceId);
-        if (!service) {
-          throw new NotFoundException(`Service with ID ${item.serviceId} not found`);
-        }
+    // 4. Hitung Total Harga (jika tidak disediakan atau perlu divalidasi)
+    //    Misal: const durationDays = calculateDuration(createOrderDto.startDate, createOrderDto.endDate);
+    //    const calculatedPrice = durationDays * car.dailyRate;
+    //    createOrderDto.totalPrice = calculatedPrice; // Atau bandingkan jika ada di DTO
 
-        const price = service.price;
-        const itemTotal = price * item.quantity;
-        total += itemTotal;
+    // 5. Simpan ke Database (jika pakai DB)
+    // const newOrderEntity = this.ordersRepository.create({
+    //     ...createOrderDto,
+    //     status: OrderStatus.PENDING, // Set status awal
+    //     // user: user, // Assign relasi jika pakai ORM
+    //     // car: car,   // Assign relasi jika pakai ORM
+    // });
+    // try {
+    //     const savedOrder = await this.ordersRepository.save(newOrderEntity);
+    //     console.log('Order saved:', savedOrder);
+    //     return savedOrder;
+    // } catch (error) {
+    //     console.error("Error saving order:", error);
+    //     throw new InternalServerErrorException('Gagal menyimpan order');
+    // }
 
-        // Create and immediately save each item
-        const orderItem = this.orderItemsRepository.create({
-          orderId: savedOrder.id, // Explicitly set the orderId
-          serviceId: item.serviceId,
-          quantity: item.quantity,
-          price,
-          total: itemTotal,
-        });
+    // --- Logic Placeholder ---
+    const newOrder = {
+      id: this.nextId++,
+      ...createOrderDto,
+      status: OrderStatus.PENDING, // Status default saat dibuat
+      totalPrice: createOrderDto.totalPrice ?? this.calculatePlaceholderPrice(createOrderDto.startDate, createOrderDto.endDate),
+      createdAt: new Date(),
+    };
+    this.orders.push(newOrder);
+    console.log('Order created (placeholder):', newOrder);
+    return newOrder;
+    // --- End Placeholder ---
+  }
 
-        await this.orderItemsRepository.save(orderItem);
-      }
+  async findAll(): Promise<any[]> { // Ganti 'any[]' dengan 'Order[]'
+    console.log('Finding all orders');
+    // return this.ordersRepository.find({ relations: ['user', 'car']}); // Contoh TypeORM dgn relasi
+    return this.orders; // Placeholder
+  }
+
+  async findOne(id: number): Promise<any | null> { // Ganti 'any' dengan 'Order'
+    console.log(`Finding order with id: ${id}`);
+    // const order = await this.ordersRepository.findOne({ where: { id }, relations: ['user', 'car'] }); // Contoh TypeORM
+    // if (!order) {
+    //   return null; // Controller akan handle NotFoundException
+    // }
+    // return order;
+
+    // --- Placeholder ---
+    const order = this.orders.find(o => o.id === id);
+    return order || null;
+    // --- End Placeholder ---
+  }
+
+  async update(id: number, updateOrderDto: UpdateOrderDto): Promise<any> { // Ganti 'any' dengan 'Order'
+    console.log(`Updating order ${id} with data:`, updateOrderDto);
+    // const order = await this.ordersRepository.findOneBy({ id }); // Contoh TypeORM
+    // if (!order) {
+    //   throw new NotFoundException(`Order dengan ID "${id}" tidak ditemukan`);
+    // }
+
+    // --- Placeholder ---
+    const orderIndex = this.orders.findIndex(o => o.id === id);
+    if (orderIndex === -1) {
+      throw new NotFoundException(`Order dengan ID "${id}" tidak ditemukan`);
     }
+    // --- End Placeholder ---
 
-    // Update order with total amount and save again
-    savedOrder.totalAmount = total;
-    if (savedOrder.isPaid) {
-      savedOrder.paidAt = new Date();
+    // --- Logika Bisnis Update ---
+    // 1. Validasi Lanjutan (jika tanggal diubah, cek ulang ketersediaan & harga)
+    if (updateOrderDto.startDate && updateOrderDto.endDate && new Date(updateOrderDto.endDate) <= new Date(updateOrderDto.startDate)) {
+         throw new BadRequestException('Tanggal selesai harus setelah tanggal mulai');
     }
+    // Cek ulang ketersediaan jika tanggal berubah...
+    // Hitung ulang harga jika tanggal atau mobil berubah...
 
-    return this.ordersRepository.save(savedOrder);
-  }
+    // 2. Update data di DB (Contoh TypeORM)
+    // Object.assign(order, updateOrderDto); // Campurkan data baru ke entity yg ada
+    // try {
+    //     const updatedOrder = await this.ordersRepository.save(order);
+    //     console.log('Order updated:', updatedOrder);
+    //     return updatedOrder;
+    // } catch (error) {
+    //     console.error("Error updating order:", error);
+    //     throw new InternalServerErrorException('Gagal memperbarui order');
+    // }
 
-  async findAll(status?: OrderStatus): Promise<Order[]> {
-    const query = this.ordersRepository.createQueryBuilder('order')
-      .leftJoinAndSelect('order.customer', 'customer')
-      .leftJoinAndSelect('order.items', 'items')
-      .leftJoinAndSelect('items.service', 'service')
-      .orderBy('order.createdAt', 'DESC');
 
-    if (status) {
-      query.where('order.status = :status', { status });
+    // --- Placeholder ---
+    const existingOrder = this.orders[orderIndex];
+    // Gabungkan data lama dengan data baru
+    this.orders[orderIndex] = { ...existingOrder, ...updateOrderDto };
+    // Hitung ulang harga jika tanggal berubah (contoh sederhana)
+    if (updateOrderDto.startDate || updateOrderDto.endDate) {
+        this.orders[orderIndex].totalPrice = this.calculatePlaceholderPrice(
+            this.orders[orderIndex].startDate,
+            this.orders[orderIndex].endDate
+        );
     }
-
-    return query.getMany();
+    console.log('Order updated (placeholder):', this.orders[orderIndex]);
+    return this.orders[orderIndex];
+    // --- End Placeholder ---
   }
 
-  async findOne(id: string): Promise<Order> {
-    const order = await this.ordersRepository.findOne({
-      where: { id },
-      relations: ['customer', 'items', 'items.service'],
-    });
+  async remove(id: number): Promise<void> {
+    console.log(`Removing order with id: ${id}`);
+    // const result = await this.ordersRepository.delete(id); // Contoh TypeORM
+    // if (result.affected === 0) {
+    //   throw new NotFoundException(`Order dengan ID "${id}" tidak ditemukan`);
+    // }
+    // console.log(`Order ${id} removed`);
 
-    if (!order) {
-      throw new NotFoundException(`Order with ID ${id} not found`);
-    }
 
-    return order;
+    // --- Placeholder ---
+     const orderIndex = this.orders.findIndex(o => o.id === id);
+     if (orderIndex === -1) {
+       throw new NotFoundException(`Order dengan ID "${id}" tidak ditemukan`);
+     }
+     this.orders.splice(orderIndex, 1);
+     console.log(`Order ${id} removed (placeholder)`);
+    // --- End Placeholder ---
   }
 
-  async update(id: string, updateOrderDto: UpdateOrderDto): Promise<Order> {
-    const order = await this.findOne(id);
-
-    if (!order) {
-      throw new NotFoundException(`Order with ID ${id} not found`);
-    }
-
-    if (updateOrderDto.status !== undefined) order.status = updateOrderDto.status;
-    if (updateOrderDto.note !== undefined) order.note = updateOrderDto.note;
-    if (updateOrderDto.customerId !== undefined) order.customerId = updateOrderDto.customerId;
-    if (updateOrderDto.paymentMethod) order.paymentMethod = updateOrderDto.paymentMethod;
-    if (updateOrderDto.deliveryDate) order.deliveryDate = updateOrderDto.deliveryDate;
-
-    if (updateOrderDto.isPaid === true && !order.isPaid) {
-      order.isPaid = true;
-      order.paidAt = new Date();
-    }
-
-    // Fix for handling order items - ensure orderId is set
-    if (updateOrderDto.items && updateOrderDto.items.length > 0) {
-      // First, remove existing items
-      await this.orderItemsRepository.delete({ orderId: id });
-
-      // Calculate new total
-      let total = 0;
-
-      // Create and save items one by one to ensure orderId is set
-      for (const item of updateOrderDto.items) {
-        const service = await this.servicesService.findOne(item.serviceId);
-        if (!service) {
-          throw new NotFoundException(`Service with ID ${item.serviceId} not found`);
-        }
-
-        const price = service.price;
-        const itemTotal = price * item.quantity;
-        total += itemTotal;
-
-        // Create and immediately save each item with explicit orderId
-        const orderItem = this.orderItemsRepository.create({
-          orderId: id,
-          serviceId: item.serviceId,
-          quantity: item.quantity,
-          price,
-          total: itemTotal,
-        });
-
-        await this.orderItemsRepository.save(orderItem);
-      }
-
-      // Update order total
-      order.totalAmount = total;
-    }
-
-    return this.ordersRepository.save(order);
+  // --- Helper Placeholder ---
+  private calculatePlaceholderPrice(startDate: string, endDate: string): number {
+      const start = new Date(startDate).getTime();
+      const end = new Date(endDate).getTime();
+      const durationMillis = end - start;
+      const durationDays = Math.ceil(durationMillis / (1000 * 60 * 60 * 24)); // Pembulatan ke atas
+      return durationDays * 300000; // Harga placeholder per hari
   }
-
-  async remove(id: string): Promise<void> {
-    const order = await this.findOne(id);
-    await this.ordersRepository.remove(order);
-  }
-
-  async getOrderCount(): Promise<number> {
-    return this.ordersRepository.count();
-  }
-
-  async getPendingOrderCount(): Promise<number> {
-    return this.ordersRepository.count({ where: { status: OrderStatus.PENDING } });
-  }
-
-  async getTotalRevenue(): Promise<number> {
-    const result = await this.ordersRepository
-      .createQueryBuilder('order')
-      .select('SUM(order.totalAmount)', 'total')
-      .where('order.isPaid = :isPaid', { isPaid: true })
-      .getRawOne();
-
-    return result.total ? parseFloat(result.total) : 0;
-  }
-
-  async getRevenueData(months: number = 6): Promise<any> {
-    const today = new Date();
-    const labels = [];
-    const revenue = [];
-    const orders = [];
-
-    // Generate last n months
-    for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      const monthName = d.toLocaleString('default', { month: 'short' });
-      labels.push(monthName);
-
-      const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
-      const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-
-      // Get revenue for the month
-      const revenueResult = await this.ordersRepository
-        .createQueryBuilder('order')
-        .select('SUM(order.totalAmount)', 'total')
-        .where('order.createdAt >= :startDate', { startDate })
-        .andWhere('order.createdAt <= :endDate', { endDate })
-        .getRawOne();
-
-      revenue.push(revenueResult.total ? parseFloat(revenueResult.total) : 0);
-
-      // Get order count for the month
-      const orderCount = await this.ordersRepository.count({
-        where: {
-          createdAt: Between(startDate, endDate),
-        },
-      });
-
-      orders.push(orderCount);
-    }
-
-    return { labels, revenue, orders };
-  }
+  // --- End Helper Placeholder ---
 }
